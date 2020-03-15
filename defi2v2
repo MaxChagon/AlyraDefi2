@@ -1,0 +1,99 @@
+pragma solidity ^0.5.12;
+
+pragma experimental ABIEncoderV2;
+
+contract Demande{
+    enum EtatDemande {Ouverte,Encours,Fermee}
+    
+    uint256 remuneration;
+    uint256 delai;
+    string description;
+    EtatDemande etat;
+    uint reputationMin;
+    address[] nomsCandidats;
+    uint nombreCandidats;
+    address entreprise;
+    address illustrateur;
+    bytes32 livraison;
+    
+    constructor(uint256 _remuneration,uint256 _delai, string memory _description,uint _reputationMin,address _entreprise,address _illustrateur) public{
+        remuneration = _remuneration;
+        delai = _delai;
+        description = _description;
+        etat = EtatDemande.Ouverte;
+        reputationMin = _reputationMin;
+        nombreCandidats = 0;
+        entreprise = _entreprise;
+        illustrateur = _illustrateur;
+    }
+    
+    function postuler() public{
+       nombreCandidats++;
+       nomsCandidats.push(msg.sender);
+       //demande.nomsCandidats[demande.nombreCandidats] = msg.sender;
+   }
+   
+   function accepterOffre(address _illustrateur) public{
+       require(illustrateur == msg.sender); //Pour que seule l'adresse qui a créé la demande puisse l'accepter + on ne peut pas accepter plusiseurs fois une demande
+       bool aPostule = false;
+       for(uint i = 0; i < nombreCandidats; i++){
+           if( nomsCandidats[i] == _illustrateur ){
+               aPostule = true;
+           }
+       }
+       if( aPostule == true ){
+       etat = EtatDemande.Encours;
+       illustrateur = _illustrateur;
+       }
+   }
+    
+    function livrer(bytes32 hash) public returns(address){
+       require(illustrateur == msg.sender);
+        livraison = hash;
+        msg.sender.transfer(remuneration);
+        return illustrateur;
+   }    
+    
+}
+
+
+contract PlaceDeMarche {
+    
+   mapping (address => uint) public reputations;
+   mapping (address => string) public nomsUtilisateurs;
+   mapping (address => bool) public utilisateurs;
+   
+   Demande[] demandes;
+   uint numDemandes;
+   
+   function inscription(string memory nom) public{
+       require(!utilisateurs[msg.sender]);
+       utilisateurs[msg.sender] = true;
+       nomsUtilisateurs[msg.sender] = nom;
+       reputations[msg.sender] = 1;
+   }
+   
+   function ajouterDemande(uint256 remuneration, uint256 delai, string memory description, uint reputationMin) payable public returns (uint){
+       require(utilisateurs[msg.sender]);
+       require(msg.value >= (remuneration + 2*remuneration/100));
+       uint demandeID = numDemandes++;
+       demandes[demandeID] = new Demande(remuneration,delai,description,reputationMin,msg.sender, msg.sender);
+       return demandeID;
+   }
+   
+   function postulerDemande(Demande demande) public{
+       require(utilisateurs[msg.sender]);
+       demande.postuler();
+   }
+   
+   function accepterOffreDemande(address _illustrateur, Demande demande) public{
+       demande.accepterOffre(_illustrateur);
+   }
+   
+   function livrerDemande(bytes32 hash, Demande demande) public {
+       demande.livrer(hash);
+       require(msg.sender == demande.livrer(hash));
+       reputations[msg.sender]++;
+   }
+ 
+}
